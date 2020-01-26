@@ -1,5 +1,5 @@
 from adult.database import Database
-from adult import stats, fill_missing
+from adult import stats, fill_missing, classification, association, clustering
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -14,7 +14,7 @@ print('Uci-Adult database analysis.\nAuthor: Dawid Bińkuś 246793\n\n')
 print('Load and display head of database:\n')
 test = Database()
 test.get_data()
-print(test.values['all_values'].head())
+print(test.all_values.head())
 test.set_all_categorical_columns()
 print(test.get_info())
 print('\nShow unique values of Income column:\n')
@@ -25,6 +25,8 @@ print('\nSeems like one of the value is invalid - let\'s fix it by assigning it 
 test.fix_income()
 print('\nDisplay unique values of Income column:\n')
 print(test.income_count())
+print('\nMap income to {-1,1}\n')
+test.map_income()
 print('\nDisplay NaN values in this database (marked as ?)\n')
 print(test.get_na())
 print('\nSTATS\n')
@@ -33,35 +35,33 @@ stats.count_column_values(test)
 stats.get_math_stats(test)
 
 print('\n---Filling missing data based on classification algorithms---\n')
-test_data = test.values['all_values'][(test.values['all_values'].WorkClass.values == '?')].copy()
-test_label = test_data.WorkClass
+fill_missing.fill_question_marks_based_on_predicting(test, 'WorkClass', 0.05)
+fill_missing.fill_question_marks_based_on_predicting(test, 'Occupation', 0.05)
+fill_missing.fill_question_marks_based_on_predicting(test, 'NativeCountry', 0.05)
+print('Check the result - now NaN values should not be available')
+test.get_na()
+print('Reset the categories')
+test.reset_categories()
 
-train_data = test.values['all_values'][(test.values['all_values'].WorkClass.values != '?')].copy()
-train_label = train_data.WorkClass
+print('\n-- Classification -- \n')
+test.get_classes()
+test.get_all_inputs()
+test.split_data_to_test()
 
-test_data.drop(columns = ['WorkClass'], inplace = True)
-train_data.drop(columns = ['WorkClass'], inplace = True)
+c_model = classification.ClassificationModel()
+c_model.perform_all(test)
 
-train_data = fill_missing.get_one_hat_from_categories(train_data)
-test_data = fill_missing.get_one_hat_from_categories(test_data)
+print(c_model.acc)
+print(c_model.conf_matrix)
 
-log_reg = LogisticRegression(max_iter=10000)
-log_reg.fit(train_data[0:1000], train_label[0:1000])
-log_reg_pred = log_reg.predict(test_data)
 
-clf = tree.DecisionTreeClassifier()
-clf = clf.fit(train_data[0:1000], train_label[0:1000])
-clf_pred = clf.predict(test_data)
+print('\n-- Apriori algorirthm -- \n')
+test.get_apriori()
+test.get_onehot_values()
+association.perform_apriori(test)
 
-r_forest = RandomForestClassifier(n_estimators=10)
-r_forest.fit(train_data[0:1000], train_label[0:1000])
-r_forest_pred = r_forest.predict(test_data)
-
-majority_class = test.values['all_values'].WorkClass.value_counts().index[0]
-
-pred_df =  pd.DataFrame({'RFor': r_forest_pred, 'DTree' : clf_pred, 'LogReg' : log_reg_pred})
-overall_pred = pred_df.apply(lambda x: x.value_counts().index[0] if x.value_counts()[0] > 1 else majority_class, axis = 1)
-print(overall_pred)
-test.values['all_values'].loc[(test.values['all_values'].WorkClass.values == '?'),'WorkClass'] = overall_pred.values
-print(test.values['all_values'].WorkClass.value_counts())
-print(test.values['all_values'].WorkClass.unique())
+test.get_classes()
+test.get_all_inputs()
+test.split_data_to_test()
+test.get_normalized_test_input()
+labels = clustering.perform_dbscan(test)
